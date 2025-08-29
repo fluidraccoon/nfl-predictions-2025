@@ -5,6 +5,7 @@ import altair as alt
 import os
 import subprocess
 from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
 st.title("2025 NFL Predictions 🏈")
 
@@ -21,6 +22,95 @@ def load_selections():
         return pd.read_csv("selections.csv")
     else:
         return pd.DataFrame(columns=['name', 'afc_winner', 'nfc_winner', 'timestamp'])
+
+def check_gsheets_setup():
+    """Check if Google Sheets is properly configured and show setup status"""
+    try:
+        if "gsheets" not in st.secrets.get("connections", {}):
+            return False, "❌ Google Sheets not configured"
+        
+        gsheets_config = st.secrets["connections"]["gsheets"]
+        required_fields = ["type", "project_id", "private_key", "client_email", "spreadsheet"]
+        missing_fields = [field for field in required_fields if not gsheets_config.get(field)]
+        
+        if missing_fields:
+            return False, f"❌ Missing: {', '.join(missing_fields)}"
+        
+        if gsheets_config.get("type") != "service_account":
+            return False, "❌ Must use service_account type"
+        
+        return True, "✅ Google Sheets configured"
+        
+    except Exception as e:
+        return False, f"❌ Configuration error: {str(e)}"
+
+def save_selection_to_gsheets(name, afc_winner, nfc_winner):
+    """Save user selection to Google Sheets with Service Account authentication"""
+    try:
+        # Check if we have proper service account credentials
+        if "gsheets" not in st.secrets.get("connections", {}):
+            return False, "Google Sheets connection not configured in secrets.toml"
+        
+        gsheets_config = st.secrets["connections"]["gsheets"]
+        
+        # Check for required service account fields
+        required_fields = ["type", "project_id", "private_key", "client_email"]
+        missing_fields = [field for field in required_fields if not gsheets_config.get(field)]
+        
+        if missing_fields:
+            return False, f"Missing service account credentials: {', '.join(missing_fields)}"
+        
+        if gsheets_config.get("type") != "service_account":
+            return False, "Google Sheets connection must use 'service_account' type for write operations"
+        
+        # Create connection to Google Sheets with service account
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        # Read existing data from Google Sheets
+        try:
+            existing_data = conn.read(worksheet="predictions", usecols=list(range(4)))
+            if existing_data.empty:
+                existing_data = pd.DataFrame(columns=['name', 'afc_winner', 'nfc_winner', 'timestamp'])
+        except Exception as read_error:
+            # If worksheet doesn't exist, create empty DataFrame
+            existing_data = pd.DataFrame(columns=['name', 'afc_winner', 'nfc_winner', 'timestamp'])
+        
+        # Prepare new row data
+        new_row = {
+            'name': name,
+            'afc_winner': afc_winner,
+            'nfc_winner': nfc_winner,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        # Check if user already exists
+        if not existing_data.empty and 'name' in existing_data.columns and name in existing_data['name'].values:
+            # Update existing row
+            existing_data.loc[existing_data['name'] == name, ['afc_winner', 'nfc_winner', 'timestamp']] = [
+                afc_winner, nfc_winner, new_row['timestamp']
+            ]
+        else:
+            # Add new row
+            new_row_df = pd.DataFrame([new_row])
+            existing_data = pd.concat([existing_data, new_row_df], ignore_index=True)
+        
+        # Write updated data back to Google Sheets
+        conn.update(worksheet="predictions", data=existing_data)
+        
+        return True, "Successfully saved to Google Sheets!"
+        
+    except Exception as e:
+        error_msg = str(e)
+        
+        # Provide specific guidance for common errors
+        if "Public Spreadsheet cannot be written to" in error_msg:
+            return False, "Cannot write to public sheet. Please: 1) Create a service account in Google Cloud Console, 2) Share your Google Sheet with the service account email, 3) Add service account credentials to secrets.toml"
+        elif "Forbidden" in error_msg:
+            return False, "Access denied. Please share your Google Sheet with the service account email address"
+        elif "not found" in error_msg.lower():
+            return False, "Spreadsheet or worksheet not found. Check your spreadsheet ID and worksheet name in secrets.toml"
+        else:
+            return False, f"Error saving to Google Sheets: {error_msg}"
 
 def save_selection(name, afc_winner, nfc_winner):
     """Save user selection to CSV"""
@@ -45,30 +135,46 @@ def save_selection(name, afc_winner, nfc_winner):
     selections_df.to_csv("selections.csv", index=False)
     return selections_df
 
-def commit_to_github(name):
-    """Commit changes to GitHub"""
-    try:
-        # Add the selections.csv file
-        subprocess.run(["git", "add", "selections.csv"], check=True)
-        
-        # Commit with user's name in message
-        commit_message = f"Add/update predictions for {name}"
-        subprocess.run(["git", "commit", "-m", commit_message], check=True)
-        
-        # Push to GitHub
-        subprocess.run(["git", "push"], check=True)
-        
-        return True, "Successfully committed to GitHub!"
-    except subprocess.CalledProcessError as e:
-        return False, f"Error committing to GitHub: {str(e)}"
-
 afc_df, nfc_df = load_data()
+
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+df = conn.read()
+st.dataframe(df)
 
 # User input section
 col1, col2 = st.columns([2, 1])
 
 with col1:
     user_name = st.text_input("Enter your name:", placeholder="e.g., John Doe")
+
+with col2:
+    # Show Google Sheets setup status
+    gsheets_ok, gsheets_status = check_gsheets_setup()
+    if gsheets_ok:
+        st.success(gsheets_status)
+    else:
+        st.error(gsheets_status)
+        with st.expander("🔧 Google Sheets Setup Guide"):
+            st.markdown("""
+            **To enable Google Sheets saving:**
+            
+            1. **Create a Service Account:**
+               - Go to [Google Cloud Console](https://console.cloud.google.com/)
+               - Create or select a project
+               - Enable Google Sheets API
+               - Create a Service Account and download JSON key
+            
+            2. **Share your Google Sheet:**
+               - Share your Google Sheet with the service account email
+               - Give it "Editor" permissions
+            
+            3. **Update secrets.toml:**
+               - Add service account credentials to `.streamlit/secrets.toml`
+               - Include spreadsheet ID and worksheet name
+            
+            **For now, predictions will be saved locally only.**
+            """)
 
 st.divider()
 
@@ -144,26 +250,23 @@ with tab3:
         with col1:
             if st.button("💾 Save Predictions", type="primary", use_container_width=True):
                 try:
+                    # Save to local CSV
                     updated_df = save_selection(user_name, selected_afc, selected_nfc)
-                    st.success(f"✅ Predictions saved for {user_name}!")
-                    st.rerun()
+                    
+                    # Save to Google Sheets
+                    with st.spinner("Saving to Google Sheets..."):
+                        gsheets_success, gsheets_message = save_selection_to_gsheets(user_name, selected_afc, selected_nfc)
+                        
+                        if gsheets_success:
+                            st.success(f"✅ Predictions saved for {user_name}!")
+                            st.success(gsheets_message)
+                        else:
+                            st.success(f"✅ Predictions saved locally for {user_name}!")
+                            st.warning(f"Google Sheets: {gsheets_message}")
+                    
+                    # st.rerun()
                 except Exception as e:
                     st.error(f"Error saving predictions: {str(e)}")
-        
-        with col2:
-            if st.button("🚀 Save & Commit to GitHub", type="secondary", use_container_width=True):
-                try:
-                    # First save the selection
-                    updated_df = save_selection(user_name, selected_afc, selected_nfc)
-                    st.success(f"✅ Predictions saved for {user_name}!")
-                    
-                    # Then commit to GitHub
-                    with st.spinner("Committing to GitHub..."):
-                        success, message = commit_to_github(user_name)
-                        if success:
-                            st.success(message)
-                        else:
-                            st.error(message)
                     
                     st.rerun()
                 except Exception as e:
