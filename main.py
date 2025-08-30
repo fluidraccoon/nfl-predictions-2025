@@ -288,7 +288,7 @@ with col1:
 st.divider()
 
 # Create tabs
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
     "🔴 AFC Winner",
     "🔵 NFC Winner", 
     "🏆 Super Bowl Winner",
@@ -298,7 +298,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🐴 Dark Horse",
     "📉 Underperformer",
     "📊 Worst Record",
-    "📝 Submit Predictions"
+    "📝 Submit Predictions",
+    "🏁 2024 Results"
 ])
 
 with tab1:
@@ -766,3 +767,164 @@ with tab10:
         st.write("Missing:")
         for item in missing_items:
             st.write(f"- {item}")
+
+with tab11:
+    st.header("🏁 2024 Season Results")
+    
+    # Define the actual 2024 NFL season winners
+    actual_2024_winners = {
+        'AFC Winner': 'Chiefs',
+        'NFC Winner': 'Eagles', 
+        'Superbowl Winner': 'Eagles',
+        'MVP': 'Josh Allen',
+        'Offensive Rookie of the Year': 'Jayden Daniels',
+        'Defensive Player of the Year': 'Patrick Surtain II',
+        'Dark Horse to Make Playoffs': ['Steelers', 'Broncos', 'Chargers', 'Commanders', 'Buccaneers', 'Vikings', 'Packers'],
+        'Underperformer to Miss Playoffs': ['Bears', 'Dolphins', 'Jets', 'Falcons', 'Cowboys', 'Bengals', '49ers'], 
+        'Worst Regular Season Record': ['Browns', 'Giants', 'Titans']
+    }
+    
+    try:
+        # Load the 2024 predictions
+        predictions_2024_df = pd.read_csv("predictions_2024.csv")
+        
+        # Display actual winners
+        st.subheader("🏆 Actual 2024 Winners")
+        
+        # Create HTML table with proper text wrapping
+        html_content = """
+        <style>
+        .winners-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .winners-table th, .winners-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .winners-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .winners-table td {
+            word-wrap: break-word;
+            white-space: normal;
+            max-width: 300px;
+        }
+        </style>
+        <table class="winners-table">
+        <tr><th>Category</th><th>Winner(s)</th></tr>
+        """
+        
+        for category, winner in actual_2024_winners.items():
+            if isinstance(winner, list):
+                winner_display = "<br>".join([f"• {w}" for w in winner])
+            else:
+                winner_display = winner
+            html_content += f"<tr><td>{category}</td><td>{winner_display}</td></tr>"
+        
+        html_content += "</table>"
+        st.markdown(html_content, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # Calculate and display scores
+        st.subheader("🎯 Scoring Results")
+        
+        # Create scoring results
+        scoring_results = []
+        
+        for index, row in predictions_2024_df.iterrows():
+            name = row['Your Name']
+            total_points = 0
+            correct_predictions = 0
+            category_scores = []
+            
+            # Check each prediction category
+            for category, actual_winner in actual_2024_winners.items():
+                # Map category names to CSV column names
+                column_mapping = {
+                    'AFC Winner': 'AFC Winner',
+                    'NFC Winner': 'NFC Winner',
+                    'Superbowl Winner': 'Superbowl Winner',
+                    'MVP': 'MVP',
+                    'Offensive Rookie of the Year': 'Offensive Rookie of the Year',
+                    'Defensive Player of the Year': 'Defensive Player of the Year',
+                    'Dark Horse to Make Playoffs': 'Dark Horse to Make Playoffs',
+                    'Underperformer to Miss Playoffs': 'Underperformer to Miss Playoffs',
+                    'Worst Regular Season Record': 'Worst Regular Season Record'
+                }
+                
+                prediction_col = column_mapping.get(category)
+                if prediction_col and prediction_col in row:
+                    prediction_raw = str(row[prediction_col])
+                    
+                    # Extract team/player name and points from prediction
+                    if ' - ' in prediction_raw:
+                        predicted_winner = prediction_raw.split(' - ')[0].strip()
+                        points_str = prediction_raw.split(' - ')[1].strip()
+                        try:
+                            points = float(points_str)
+                        except:
+                            points = 0
+                    else:
+                        predicted_winner = prediction_raw.strip()
+                        points = 0
+                    
+                    # Check if prediction is correct
+                    is_correct = False
+                    if isinstance(actual_winner, list):
+                        # For categories with multiple winners, check if prediction matches any of them
+                        is_correct = any(predicted_winner.lower() == winner.lower() for winner in actual_winner)
+                    else:
+                        # For single winner categories
+                        is_correct = predicted_winner.lower() == actual_winner.lower()
+                    
+                    if is_correct:
+                        total_points += points
+                        correct_predictions += 1
+                        category_scores.append(f"✅ {category}: {predicted_winner} - {points:g} pts")
+                    else:
+                        category_scores.append(f"❌ {category}: {predicted_winner} - {points:g} pts")
+            
+            scoring_results.append({
+                'Name': name,
+                'Correct Predictions': f"{correct_predictions}/9",
+                'Total Points': f"{total_points:g}",
+                'Details': " | ".join(category_scores)
+            })
+        
+        # Sort by total points (descending)
+        scoring_results.sort(key=lambda x: float(x['Total Points']), reverse=True)
+        
+        # Display leaderboard
+        leaderboard_df = pd.DataFrame(scoring_results)
+        st.dataframe(leaderboard_df[['Name', 'Correct Predictions', 'Total Points']], hide_index=True, use_container_width=True)
+        
+        # Display detailed breakdown for selected user
+        st.subheader("🔍 Detailed Breakdown")
+        selected_user = st.selectbox("Select user for detailed breakdown:", 
+                                   options=[result['Name'] for result in scoring_results],
+                                   key="user_breakdown_select")
+        
+        if selected_user:
+            user_details = next((result for result in scoring_results if result['Name'] == selected_user), None)
+            if user_details:
+                st.write(f"**{selected_user}**: {user_details['Correct Predictions']} correct, {user_details['Total Points']} points")
+                
+                # Show detailed breakdown
+                details = user_details['Details'].split(' | ')
+                for detail in details:
+                    if detail.startswith('❌'):
+                        # Grey out wrong predictions
+                        st.markdown(f"<p style='color: #888888; margin: 0;'>- {detail}</p>", unsafe_allow_html=True)
+                    else:
+                        # Normal color for correct predictions using same styling
+                        st.markdown(f"<p style='color: inherit; margin: 0;'>- {detail}</p>", unsafe_allow_html=True)
+        
+    except FileNotFoundError:
+        st.error("predictions_2024.csv file not found!")
+    except Exception as e:
+        st.error(f"Error loading 2024 predictions: {str(e)}")
