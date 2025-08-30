@@ -1,13 +1,15 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import altair as alt
 import os
-import subprocess
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-st.title("2025 NFL Predictions 🏈")
+st.set_page_config(
+    page_title="2025 NFL Predictions",
+    page_icon="🔮",
+)
+
+st.title("2025 NFL Predictions 🔮")
 
 # Load the data
 @st.cache_data
@@ -25,10 +27,7 @@ def load_data():
 def load_selections():
     """Load existing selections or create empty DataFrame"""
     try:
-        if os.path.exists("predictions.csv"):
-            return pd.read_csv("predictions.csv")
-        else:
-            return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+        return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
     except Exception as e:
         return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
 
@@ -1002,8 +1001,9 @@ with tab1:
         # Display detailed breakdown for selected user
         st.subheader("🔍 Detailed Breakdown")
         selected_user = st.selectbox("Select user for detailed breakdown:", 
-                                   options=[result['Name'] for result in scoring_results],
-                                   key="user_breakdown_select")
+            options=[result['Name'] for result in scoring_results],
+            key="user_breakdown_select"
+        )
         
         if selected_user:
             user_details = next((result for result in scoring_results if result['Name'] == selected_user), None)
