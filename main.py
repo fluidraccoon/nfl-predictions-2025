@@ -17,13 +17,16 @@ def load_data():
     mvp_data = pd.read_csv("categories/mvp.csv")
     dpoy_data = pd.read_csv("categories/dpoy.csv")
     oroy_data = pd.read_csv("categories/oroy.csv")
-    return afc_data, nfc_data, mvp_data, dpoy_data, oroy_data
+    dark_horse_data = pd.read_csv("categories/playoff_dark_horse.csv")
+    playoff_miss_data = pd.read_csv("categories/playoff_miss.csv")
+    worst_record_data = pd.read_csv("categories/worst_record.csv")
+    return afc_data, nfc_data, mvp_data, dpoy_data, oroy_data, dark_horse_data, playoff_miss_data, worst_record_data
 
 def load_selections():
     """Load existing selections or create empty DataFrame"""
     return pd.DataFrame(columns=['name', 'category', 'points', 'timestamp'])
 
-def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_winner, oroy_winner):
+def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_winner, oroy_winner, dark_horse_winner, playoff_miss_winner, worst_record_winner):
     """Save user selection to Google Sheets with Service Account authentication"""
     try:
         # Check if we have proper service account credentials
@@ -119,6 +122,33 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
             'timestamp': timestamp
         })
         
+        # Add Dark Horse Winner row
+        dark_horse_points = dark_horse_df[dark_horse_df['selection'] == dark_horse_winner]['points'].iloc[0]
+        new_rows.append({
+            'name': name,
+            'category': 'Dark Horse',
+            'points': dark_horse_points,
+            'timestamp': timestamp
+        })
+        
+        # Add Playoff Miss Winner row
+        playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == playoff_miss_winner]['points'].iloc[0]
+        new_rows.append({
+            'name': name,
+            'category': 'Underperformer',
+            'points': playoff_miss_points,
+            'timestamp': timestamp
+        })
+        
+        # Add Worst Record Winner row
+        worst_record_points = worst_record_df[worst_record_df['selection'] == worst_record_winner]['points'].iloc[0]
+        new_rows.append({
+            'name': name,
+            'category': 'Worst Record',
+            'points': worst_record_points,
+            'timestamp': timestamp
+        })
+        
         # Add new rows to existing data
         new_rows_df = pd.DataFrame(new_rows)
         updated_data = pd.concat([existing_data, new_rows_df], ignore_index=True)
@@ -141,7 +171,7 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         else:
             return False, f"Error saving to Google Sheets: {error_msg}"
 
-def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_winner, oroy_winner):
+def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_winner, oroy_winner, dark_horse_winner, playoff_miss_winner, worst_record_winner):
     """Save user selection to CSV"""
     selections_df = load_selections()
     
@@ -210,13 +240,40 @@ def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_win
         'timestamp': timestamp
     })
     
+    # Add Dark Horse Winner row
+    dark_horse_points = dark_horse_df[dark_horse_df['selection'] == dark_horse_winner]['points'].iloc[0]
+    new_rows.append({
+        'name': name,
+        'category': 'Dark Horse',
+        'points': dark_horse_points,
+        'timestamp': timestamp
+    })
+    
+    # Add Playoff Miss Winner row
+    playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == playoff_miss_winner]['points'].iloc[0]
+    new_rows.append({
+        'name': name,
+        'category': 'Underperformer',
+        'points': playoff_miss_points,
+        'timestamp': timestamp
+    })
+    
+    # Add Worst Record Winner row
+    worst_record_points = worst_record_df[worst_record_df['selection'] == worst_record_winner]['points'].iloc[0]
+    new_rows.append({
+        'name': name,
+        'category': 'Worst Record',
+        'points': worst_record_points,
+        'timestamp': timestamp
+    })
+    
     # Add new rows to existing data
     new_rows_df = pd.DataFrame(new_rows)
     updated_df = pd.concat([selections_df, new_rows_df], ignore_index=True)
     
     return updated_df
 
-afc_df, nfc_df, mvp_df, dpoy_df, oroy_df = load_data()
+afc_df, nfc_df, mvp_df, dpoy_df, oroy_df, dark_horse_df, playoff_miss_df, worst_record_df = load_data()
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -231,13 +288,16 @@ with col1:
 st.divider()
 
 # Create tabs
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🔴 AFC Winner",
     "🔵 NFC Winner", 
     "🏆 Super Bowl Winner",
     "🏅 MVP",
     "🛡️ DPOY",
     "⭐ OROY",
+    "🐴 Dark Horse",
+    "📉 Underperformer",
+    "📊 Worst Record",
     "📝 Submit Predictions"
 ])
 
@@ -416,6 +476,81 @@ with tab6:
         st.info("Please select an OROY")
 
 with tab7:
+    st.header("Dark Horse (Team to Make Playoffs)")
+    
+    # Sort Dark Horse candidates by points (lowest first), then alphabetically by name
+    dark_horse_sorted = dark_horse_df.sort_values(['points', 'selection'], ascending=[True, True])
+    dark_horse_options = ["-- Select Dark Horse --"]
+    for _, row in dark_horse_sorted.iterrows():
+        # Format points to avoid unnecessary decimals
+        points_display = f"{row['points']:g}"  # This removes trailing zeros
+        dark_horse_options.append(f"**{row['selection']}** - *{points_display} points*")
+    
+    selected_dark_horse_raw = st.radio("Choose Dark Horse:", dark_horse_options, key="dark_horse_select")
+    
+    # Only set selected_dark_horse if a real team is selected
+    if selected_dark_horse_raw != "-- Select Dark Horse --":
+        selected_dark_horse = selected_dark_horse_raw.split(" - ")[0].replace("**", "")  # Remove markdown formatting
+        points_str = selected_dark_horse_raw.split(" - ")[1].replace("*", "").split(" ")[0]  # Remove markdown formatting
+        points = float(points_str)
+        # Format points to avoid unnecessary decimals
+        points_display = f"{points:g}"
+        st.success(f"**{selected_dark_horse}** - *{points_display} points*")
+    else:
+        selected_dark_horse = None
+        st.info("Please select a Dark Horse team")
+
+with tab8:
+    st.header("Underperformer (Team to Miss Playoffs)")
+    
+    # Sort Underperformer candidates by points (lowest first), then alphabetically by name
+    playoff_miss_sorted = playoff_miss_df.sort_values(['points', 'selection'], ascending=[True, True])
+    playoff_miss_options = ["-- Select Underperformer --"]
+    for _, row in playoff_miss_sorted.iterrows():
+        # Format points to avoid unnecessary decimals
+        points_display = f"{row['points']:g}"  # This removes trailing zeros
+        playoff_miss_options.append(f"**{row['selection']}** - *{points_display} points*")
+    
+    selected_playoff_miss_raw = st.radio("Choose Underperformer:", playoff_miss_options, key="playoff_miss_select")
+    
+    # Only set selected_playoff_miss if a real team is selected
+    if selected_playoff_miss_raw != "-- Select Underperformer --":
+        selected_playoff_miss = selected_playoff_miss_raw.split(" - ")[0].replace("**", "")  # Remove markdown formatting
+        points_str = selected_playoff_miss_raw.split(" - ")[1].replace("*", "").split(" ")[0]  # Remove markdown formatting
+        points = float(points_str)
+        # Format points to avoid unnecessary decimals
+        points_display = f"{points:g}"
+        st.success(f"**{selected_playoff_miss}** - *{points_display} points*")
+    else:
+        selected_playoff_miss = None
+        st.info("Please select an Underperformer team")
+
+with tab9:
+    st.header("Worst Record")
+    
+    # Sort Worst Record candidates by points (lowest first), then alphabetically by name
+    worst_record_sorted = worst_record_df.sort_values(['points', 'selection'], ascending=[True, True])
+    worst_record_options = ["-- Select Worst Record --"]
+    for _, row in worst_record_sorted.iterrows():
+        # Format points to avoid unnecessary decimals
+        points_display = f"{row['points']:g}"  # This removes trailing zeros
+        worst_record_options.append(f"**{row['selection']}** - *{points_display} points*")
+    
+    selected_worst_record_raw = st.radio("Choose team with worst record:", worst_record_options, key="worst_record_select")
+    
+    # Only set selected_worst_record if a real team is selected
+    if selected_worst_record_raw != "-- Select Worst Record --":
+        selected_worst_record = selected_worst_record_raw.split(" - ")[0].replace("**", "")  # Remove markdown formatting
+        points_str = selected_worst_record_raw.split(" - ")[1].replace("*", "").split(" ")[0]  # Remove markdown formatting
+        points = float(points_str)
+        # Format points to avoid unnecessary decimals
+        points_display = f"{points:g}"
+        st.success(f"**{selected_worst_record}** - *{points_display} points*")
+    else:
+        selected_worst_record = None
+        st.info("Please select a team for worst record")
+
+with tab10:
     st.header("Submit Your Predictions")
     
     # Create predictions table
@@ -521,6 +656,54 @@ with tab7:
             "Points": "0"
         })
     
+    # Add Dark Horse prediction
+    if 'selected_dark_horse' in locals() and selected_dark_horse:
+        dark_horse_points = dark_horse_df[dark_horse_df['selection'] == selected_dark_horse]['points'].iloc[0]
+        dark_horse_points_display = f"{dark_horse_points:g}"
+        predictions_data.append({
+            "Category": "Dark Horse",
+            "Prediction": selected_dark_horse,
+            "Points": dark_horse_points_display
+        })
+    else:
+        predictions_data.append({
+            "Category": "Dark Horse",
+            "Prediction": "Not selected",
+            "Points": "0"
+        })
+    
+    # Add Underperformer prediction
+    if 'selected_playoff_miss' in locals() and selected_playoff_miss:
+        playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == selected_playoff_miss]['points'].iloc[0]
+        playoff_miss_points_display = f"{playoff_miss_points:g}"
+        predictions_data.append({
+            "Category": "Underperformer",
+            "Prediction": selected_playoff_miss,
+            "Points": playoff_miss_points_display
+        })
+    else:
+        predictions_data.append({
+            "Category": "Underperformer",
+            "Prediction": "Not selected",
+            "Points": "0"
+        })
+    
+    # Add Worst Record prediction
+    if 'selected_worst_record' in locals() and selected_worst_record:
+        worst_record_points = worst_record_df[worst_record_df['selection'] == selected_worst_record]['points'].iloc[0]
+        worst_record_points_display = f"{worst_record_points:g}"
+        predictions_data.append({
+            "Category": "Worst Record",
+            "Prediction": selected_worst_record,
+            "Points": worst_record_points_display
+        })
+    else:
+        predictions_data.append({
+            "Category": "Worst Record",
+            "Prediction": "Not selected",
+            "Points": "0"
+        })
+    
     # Display the table
     predictions_df = pd.DataFrame(predictions_data)
     st.dataframe(predictions_df, hide_index=True, use_container_width=True)
@@ -528,18 +711,18 @@ with tab7:
     st.divider()
     
     # Submission section
-    if user_name and 'selected_afc' in locals() and selected_afc and 'selected_nfc' in locals() and selected_nfc and 'selected_sb' in locals() and selected_sb and 'selected_mvp' in locals() and selected_mvp and 'selected_dpoy' in locals() and selected_dpoy and 'selected_oroy' in locals() and selected_oroy:
+    if user_name and 'selected_afc' in locals() and selected_afc and 'selected_nfc' in locals() and selected_nfc and 'selected_sb' in locals() and selected_sb and 'selected_mvp' in locals() and selected_mvp and 'selected_dpoy' in locals() and selected_dpoy and 'selected_oroy' in locals() and selected_oroy and 'selected_dark_horse' in locals() and selected_dark_horse and 'selected_playoff_miss' in locals() and selected_playoff_miss and 'selected_worst_record' in locals() and selected_worst_record:
         col1, col2 = st.columns([1, 1])
         
         with col1:
             if st.button("💾 Save Predictions", type="primary", use_container_width=True):
                 try:
                     # Save to local CSV
-                    updated_df = save_selection(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy)
+                    updated_df = save_selection(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
                     
                     # Save to Google Sheets
                     with st.spinner("Saving to Google Sheets..."):
-                        gsheets_success, gsheets_message = save_selection_to_gsheets(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy)
+                        gsheets_success, gsheets_message = save_selection_to_gsheets(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
                         
                         if gsheets_success:
                             st.success(f"✅ Predictions saved for {user_name}!")
@@ -573,6 +756,12 @@ with tab7:
             missing_items.append("🛡️ DPOY")
         if 'selected_oroy' not in locals() or not selected_oroy:
             missing_items.append("⭐ OROY")
+        if 'selected_dark_horse' not in locals() or not selected_dark_horse:
+            missing_items.append("🐴 Dark Horse")
+        if 'selected_playoff_miss' not in locals() or not selected_playoff_miss:
+            missing_items.append("📉 Underperformer")
+        if 'selected_worst_record' not in locals() or not selected_worst_record:
+            missing_items.append("📊 Worst Record")
         
         st.write("Missing:")
         for item in missing_items:
