@@ -24,7 +24,13 @@ def load_data():
 
 def load_selections():
     """Load existing selections or create empty DataFrame"""
-    return pd.DataFrame(columns=['name', 'category', 'points', 'timestamp'])
+    try:
+        if os.path.exists("predictions.csv"):
+            return pd.read_csv("predictions.csv")
+        else:
+            return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+    except Exception as e:
+        return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
 
 def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_winner, oroy_winner, dark_horse_winner, playoff_miss_winner, worst_record_winner):
     """Save user selection to Google Sheets with Service Account authentication"""
@@ -70,6 +76,7 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         new_rows.append({
             'name': name,
             'category': 'AFC Winner',
+            'selection': afc_winner,
             'points': afc_points,
             'timestamp': timestamp
         })
@@ -79,6 +86,7 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         new_rows.append({
             'name': name,
             'category': 'NFC Winner',
+            'selection': nfc_winner,
             'points': nfc_points,
             'timestamp': timestamp
         })
@@ -91,6 +99,7 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         new_rows.append({
             'name': name,
             'category': 'Super Bowl Winner',
+            'selection': sb_winner,
             'points': sb_points,
             'timestamp': timestamp
         })
@@ -100,6 +109,7 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         new_rows.append({
             'name': name,
             'category': 'MVP',
+            'selection': mvp_winner,
             'points': mvp_points,
             'timestamp': timestamp
         })
@@ -109,6 +119,7 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         new_rows.append({
             'name': name,
             'category': 'DPOY',
+            'selection': dpoy_winner,
             'points': dpoy_points,
             'timestamp': timestamp
         })
@@ -118,36 +129,76 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         new_rows.append({
             'name': name,
             'category': 'OROY',
+            'selection': oroy_winner,
             'points': oroy_points,
             'timestamp': timestamp
         })
         
-        # Add Dark Horse Winner row
-        dark_horse_points = dark_horse_df[dark_horse_df['selection'] == dark_horse_winner]['points'].iloc[0]
-        new_rows.append({
-            'name': name,
-            'category': 'Dark Horse',
-            'points': dark_horse_points,
-            'timestamp': timestamp
-        })
+        # Add Dark Horse Winner rows (can be multiple teams)
+        if isinstance(dark_horse_winner, list):
+            for team in dark_horse_winner:
+                dark_horse_points = dark_horse_df[dark_horse_df['selection'] == team]['points'].iloc[0]
+                new_rows.append({
+                    'name': name,
+                    'category': 'Dark Horse',
+                    'selection': team,
+                    'points': dark_horse_points,
+                    'timestamp': timestamp
+                })
+        else:
+            # Handle single selection (backward compatibility)
+            dark_horse_points = dark_horse_df[dark_horse_df['selection'] == dark_horse_winner]['points'].iloc[0]
+            new_rows.append({
+                'name': name,
+                'category': 'Dark Horse',
+                'selection': dark_horse_winner,
+                'points': dark_horse_points,
+                'timestamp': timestamp
+            })
         
-        # Add Playoff Miss Winner row
-        playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == playoff_miss_winner]['points'].iloc[0]
-        new_rows.append({
-            'name': name,
-            'category': 'Underperformer',
-            'points': playoff_miss_points,
-            'timestamp': timestamp
-        })
+        # Add Playoff Miss Winner rows (can be multiple teams)
+        if isinstance(playoff_miss_winner, list):
+            for team in playoff_miss_winner:
+                playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == team]['points'].iloc[0]
+                new_rows.append({
+                    'name': name,
+                    'category': 'Underperformer',
+                    'selection': team,
+                    'points': playoff_miss_points,
+                    'timestamp': timestamp
+                })
+        else:
+            # Handle single selection (backward compatibility)
+            playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == playoff_miss_winner]['points'].iloc[0]
+            new_rows.append({
+                'name': name,
+                'category': 'Underperformer',
+                'selection': playoff_miss_winner,
+                'points': playoff_miss_points,
+                'timestamp': timestamp
+            })
         
-        # Add Worst Record Winner row
-        worst_record_points = worst_record_df[worst_record_df['selection'] == worst_record_winner]['points'].iloc[0]
-        new_rows.append({
-            'name': name,
-            'category': 'Worst Record',
-            'points': worst_record_points,
-            'timestamp': timestamp
-        })
+        # Add Worst Record Winner rows (can be multiple teams)
+        if isinstance(worst_record_winner, list):
+            for team in worst_record_winner:
+                worst_record_points = worst_record_df[worst_record_df['selection'] == team]['points'].iloc[0]
+                new_rows.append({
+                    'name': name,
+                    'category': 'Worst Record',
+                    'selection': team,
+                    'points': worst_record_points,
+                    'timestamp': timestamp
+                })
+        else:
+            # Handle single selection (backward compatibility)
+            worst_record_points = worst_record_df[worst_record_df['selection'] == worst_record_winner]['points'].iloc[0]
+            new_rows.append({
+                'name': name,
+                'category': 'Worst Record',
+                'selection': worst_record_winner,
+                'points': worst_record_points,
+                'timestamp': timestamp
+            })
         
         # Add new rows to existing data
         new_rows_df = pd.DataFrame(new_rows)
@@ -156,7 +207,7 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         # Write updated data back to Google Sheets
         conn.update(worksheet="predictions", data=updated_data)
         
-        return True, "Successfully saved to Google Sheets!"
+        return True, "Successfully saved to database!"
         
     except Exception as e:
         error_msg = str(e)
@@ -188,6 +239,7 @@ def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_win
     new_rows.append({
         'name': name,
         'category': 'AFC Winner',
+        'selection': afc_winner,
         'points': afc_points,
         'timestamp': timestamp
     })
@@ -197,6 +249,7 @@ def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_win
     new_rows.append({
         'name': name,
         'category': 'NFC Winner',
+        'selection': nfc_winner,
         'points': nfc_points,
         'timestamp': timestamp
     })
@@ -209,6 +262,7 @@ def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_win
     new_rows.append({
         'name': name,
         'category': 'Super Bowl Winner',
+        'selection': sb_winner,
         'points': sb_points,
         'timestamp': timestamp
     })
@@ -218,6 +272,7 @@ def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_win
     new_rows.append({
         'name': name,
         'category': 'MVP',
+        'selection': mvp_winner,
         'points': mvp_points,
         'timestamp': timestamp
     })
@@ -227,6 +282,7 @@ def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_win
     new_rows.append({
         'name': name,
         'category': 'DPOY',
+        'selection': dpoy_winner,
         'points': dpoy_points,
         'timestamp': timestamp
     })
@@ -236,36 +292,76 @@ def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_win
     new_rows.append({
         'name': name,
         'category': 'OROY',
+        'selection': oroy_winner,
         'points': oroy_points,
         'timestamp': timestamp
     })
     
-    # Add Dark Horse Winner row
-    dark_horse_points = dark_horse_df[dark_horse_df['selection'] == dark_horse_winner]['points'].iloc[0]
-    new_rows.append({
-        'name': name,
-        'category': 'Dark Horse',
-        'points': dark_horse_points,
-        'timestamp': timestamp
-    })
+    # Add Dark Horse Winner rows (can be multiple teams)
+    if isinstance(dark_horse_winner, list):
+        for team in dark_horse_winner:
+            dark_horse_points = dark_horse_df[dark_horse_df['selection'] == team]['points'].iloc[0]
+            new_rows.append({
+                'name': name,
+                'category': 'Dark Horse',
+                'selection': team,
+                'points': dark_horse_points,
+                'timestamp': timestamp
+            })
+    else:
+        # Handle single selection (backward compatibility)
+        dark_horse_points = dark_horse_df[dark_horse_df['selection'] == dark_horse_winner]['points'].iloc[0]
+        new_rows.append({
+            'name': name,
+            'category': 'Dark Horse',
+            'selection': dark_horse_winner,
+            'points': dark_horse_points,
+            'timestamp': timestamp
+        })
     
-    # Add Playoff Miss Winner row
-    playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == playoff_miss_winner]['points'].iloc[0]
-    new_rows.append({
-        'name': name,
-        'category': 'Underperformer',
-        'points': playoff_miss_points,
-        'timestamp': timestamp
-    })
+    # Add Playoff Miss Winner rows (can be multiple teams)
+    if isinstance(playoff_miss_winner, list):
+        for team in playoff_miss_winner:
+            playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == team]['points'].iloc[0]
+            new_rows.append({
+                'name': name,
+                'category': 'Underperformer',
+                'selection': team,
+                'points': playoff_miss_points,
+                'timestamp': timestamp
+            })
+    else:
+        # Handle single selection (backward compatibility)
+        playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == playoff_miss_winner]['points'].iloc[0]
+        new_rows.append({
+            'name': name,
+            'category': 'Underperformer',
+            'selection': playoff_miss_winner,
+            'points': playoff_miss_points,
+            'timestamp': timestamp
+        })
     
-    # Add Worst Record Winner row
-    worst_record_points = worst_record_df[worst_record_df['selection'] == worst_record_winner]['points'].iloc[0]
-    new_rows.append({
-        'name': name,
-        'category': 'Worst Record',
-        'points': worst_record_points,
-        'timestamp': timestamp
-    })
+    # Add Worst Record Winner rows (can be multiple teams)
+    if isinstance(worst_record_winner, list):
+        for team in worst_record_winner:
+            worst_record_points = worst_record_df[worst_record_df['selection'] == team]['points'].iloc[0]
+            new_rows.append({
+                'name': name,
+                'category': 'Worst Record',
+                'selection': team,
+                'points': worst_record_points,
+                'timestamp': timestamp
+            })
+    else:
+        # Handle single selection (backward compatibility)
+        worst_record_points = worst_record_df[worst_record_df['selection'] == worst_record_winner]['points'].iloc[0]
+        new_rows.append({
+            'name': name,
+            'category': 'Worst Record',
+            'selection': worst_record_winner,
+            'points': worst_record_points,
+            'timestamp': timestamp
+        })
     
     # Add new rows to existing data
     new_rows_df = pd.DataFrame(new_rows)
@@ -722,7 +818,7 @@ with tab11:
                     updated_df = save_selection(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
                     
                     # Save to Google Sheets
-                    with st.spinner("Saving to Google Sheets..."):
+                    with st.spinner("Saving to database..."):
                         gsheets_success, gsheets_message = save_selection_to_gsheets(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
                         
                         if gsheets_success:
