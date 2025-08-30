@@ -883,9 +883,6 @@ with tab1:
         # Load the 2024 predictions
         predictions_2024_df = pd.read_csv("predictions_2024.csv")
         
-        # Display actual winners
-        st.subheader("🏆 Actual 2024 Winners")
-        
         # Create HTML table with proper text wrapping
         html_content = """
         <style>
