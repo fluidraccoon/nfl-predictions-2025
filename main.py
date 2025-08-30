@@ -289,6 +289,7 @@ st.divider()
 
 # Create tabs
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+    "🏁 2024 Results",
     "🔴 AFC Winner",
     "🔵 NFC Winner", 
     "🏆 Super Bowl Winner",
@@ -298,11 +299,10 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
     "🐴 Dark Horse",
     "📉 Underperformer",
     "📊 Worst Record",
-    "📝 Submit Predictions",
-    "🏁 2024 Results"
+    "📝 Submit Predictions"
 ])
 
-with tab1:
+with tab2:
     st.header("AFC Conference Winner")
     
     # Sort AFC teams by points (lowest first), then alphabetically by team name
@@ -327,7 +327,7 @@ with tab1:
         selected_afc = None
         st.info("Please select an AFC team")
 
-with tab2:
+with tab3:
     st.header("NFC Conference Winner")
     
     # Sort NFC teams by points (lowest first), then alphabetically by team name
@@ -352,7 +352,7 @@ with tab2:
         selected_nfc = None
         st.info("Please select an NFC team")
 
-with tab3:
+with tab4:
     st.header("Super Bowl Winner")
     
     # Super Bowl selection can only be made if both AFC and NFC winners are selected
@@ -401,7 +401,7 @@ with tab3:
             for item in missing_for_sb:
                 st.write(f"- {item}")
 
-with tab4:
+with tab5:
     st.header("MVP")
     
     # Sort MVP candidates by points (lowest first), then alphabetically by name
@@ -426,7 +426,7 @@ with tab4:
         selected_mvp = None
         st.info("Please select an MVP")
 
-with tab5:
+with tab6:
     st.header("DPOY (Defensive Player of the Year)")
     
     # Sort DPOY candidates by points (lowest first), then alphabetically by name
@@ -451,7 +451,7 @@ with tab5:
         selected_dpoy = None
         st.info("Please select a DPOY")
 
-with tab6:
+with tab7:
     st.header("OROY (Offensive Rookie of the Year)")
     
     # Sort OROY candidates by points (lowest first), then alphabetically by name
@@ -476,7 +476,7 @@ with tab6:
         selected_oroy = None
         st.info("Please select an OROY")
 
-with tab7:
+with tab8:
     st.header("Dark Horse (Team to Make Playoffs)")
     
     # Sort Dark Horse candidates by points (lowest first), then alphabetically by name
@@ -501,7 +501,7 @@ with tab7:
         selected_dark_horse = None
         st.info("Please select a Dark Horse team")
 
-with tab8:
+with tab9:
     st.header("Underperformer (Team to Miss Playoffs)")
     
     # Sort Underperformer candidates by points (lowest first), then alphabetically by name
@@ -526,7 +526,7 @@ with tab8:
         selected_playoff_miss = None
         st.info("Please select an Underperformer team")
 
-with tab9:
+with tab10:
     st.header("Worst Record")
     
     # Sort Worst Record candidates by points (lowest first), then alphabetically by name
@@ -551,7 +551,7 @@ with tab9:
         selected_worst_record = None
         st.info("Please select a team for worst record")
 
-with tab10:
+with tab11:
     st.header("Submit Your Predictions")
     
     # Create predictions table
@@ -768,7 +768,7 @@ with tab10:
         for item in missing_items:
             st.write(f"- {item}")
 
-with tab11:
+with tab1:
     st.header("🏁 2024 Season Results")
     
     # Define the actual 2024 NFL season winners
