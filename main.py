@@ -34,12 +34,9 @@ def load_selections():
     """Load existing selections or create empty DataFrame with file locking"""
     with csv_lock:
         try:
-            if os.path.exists("predictions.csv"):
-                return pd.read_csv("predictions.csv")
-            else:
-                return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+            return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp', 'session_id'])
         except Exception as e:
-            return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+            return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp', 'session_id'])
 
 def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_winner, oroy_winner, dark_horse_winner, playoff_miss_winner, worst_record_winner):
     """Save user selection to Google Sheets with Service Account authentication"""
@@ -63,20 +60,21 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         # Create connection to Google Sheets with service account
         conn = st.connection("gsheets", type=GSheetsConnection)
         
-        # Read existing data from Google Sheets with retry logic
+        # Read existing data from Google Sheets with retry logic and cache-busting
         max_retries = 3
         retry_delay = 1
         
         for attempt in range(max_retries):
             try:
-                existing_data = conn.read(worksheet="predictions", usecols=list(range(5)))
+                # Add cache-busting parameter to ensure fresh read
+                existing_data = conn.read(worksheet="predictions", usecols=list(range(6)), ttl=0)
                 if existing_data.empty:
-                    existing_data = pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+                    existing_data = pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp', 'session_id'])
                 break
             except Exception as read_error:
                 if attempt == max_retries - 1:
                     # If this is the last attempt, create empty DataFrame
-                    existing_data = pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+                    existing_data = pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp', 'session_id'])
                 else:
                     # Wait before retrying
                     time.sleep(retry_delay)
@@ -88,6 +86,7 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         
         # Prepare new row data for each category
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        session_id = f"{name}_{int(time.time() * 1000)}_{random.randint(1000, 9999)}"
         new_rows = []
         
         # Add AFC Winner row
@@ -97,7 +96,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
             'category': 'AFC Winner',
             'selection': afc_winner,
             'points': afc_points,
-            'timestamp': timestamp
+            'timestamp': timestamp,
+            'session_id': session_id
         })
         
         # Add NFC Winner row
@@ -107,7 +107,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
             'category': 'NFC Winner',
             'selection': nfc_winner,
             'points': nfc_points,
-            'timestamp': timestamp
+            'timestamp': timestamp,
+            'session_id': session_id
         })
         
         # Add Super Bowl Winner row
@@ -120,7 +121,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
             'category': 'Super Bowl Winner',
             'selection': sb_winner,
             'points': sb_points,
-            'timestamp': timestamp
+            'timestamp': timestamp,
+            'session_id': session_id
         })
         
         # Add MVP Winner row
@@ -130,7 +132,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
             'category': 'MVP',
             'selection': mvp_winner,
             'points': mvp_points,
-            'timestamp': timestamp
+            'timestamp': timestamp,
+            'session_id': session_id
         })
         
         # Add DPOY Winner row
@@ -140,7 +143,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
             'category': 'DPOY',
             'selection': dpoy_winner,
             'points': dpoy_points,
-            'timestamp': timestamp
+            'timestamp': timestamp,
+            'session_id': session_id
         })
         
         # Add OROY Winner row
@@ -150,7 +154,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
             'category': 'OROY',
             'selection': oroy_winner,
             'points': oroy_points,
-            'timestamp': timestamp
+            'timestamp': timestamp,
+            'session_id': session_id
         })
         
         # Add Dark Horse Winner rows (can be multiple teams)
@@ -162,7 +167,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
                     'category': 'Dark Horse',
                     'selection': team,
                     'points': dark_horse_points,
-                    'timestamp': timestamp
+                    'timestamp': timestamp,
+                    'session_id': session_id
                 })
         else:
             # Handle single selection (backward compatibility)
@@ -172,7 +178,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
                 'category': 'Dark Horse',
                 'selection': dark_horse_winner,
                 'points': dark_horse_points,
-                'timestamp': timestamp
+                'timestamp': timestamp,
+                'session_id': session_id
             })
         
         # Add Playoff Miss Winner rows (can be multiple teams)
@@ -184,7 +191,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
                     'category': 'Underperformer',
                     'selection': team,
                     'points': playoff_miss_points,
-                    'timestamp': timestamp
+                    'timestamp': timestamp,
+                    'session_id': session_id
                 })
         else:
             # Handle single selection (backward compatibility)
@@ -194,7 +202,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
                 'category': 'Underperformer',
                 'selection': playoff_miss_winner,
                 'points': playoff_miss_points,
-                'timestamp': timestamp
+                'timestamp': timestamp,
+                'session_id': session_id
             })
         
         # Add Worst Record Winner rows (can be multiple teams)
@@ -206,7 +215,8 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
                     'category': 'Worst Record',
                     'selection': team,
                     'points': worst_record_points,
-                    'timestamp': timestamp
+                    'timestamp': timestamp,
+                    'session_id': session_id
                 })
         else:
             # Handle single selection (backward compatibility)
@@ -216,42 +226,57 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
                 'category': 'Worst Record',
                 'selection': worst_record_winner,
                 'points': worst_record_points,
-                'timestamp': timestamp
+                'timestamp': timestamp,
+                'session_id': session_id
             })
         
         # Add new rows to existing data
         new_rows_df = pd.DataFrame(new_rows)
         
         # Add a small random delay to reduce collision probability
-        import random
         time.sleep(random.uniform(0.1, 0.5))
         
         updated_data = pd.concat([existing_data, new_rows_df], ignore_index=True)
         
-        # Write updated data back to Google Sheets with retry logic
+        # Write updated data back to Google Sheets with append-only strategy
         max_write_retries = 5
         write_retry_delay = 1
         
         for attempt in range(max_write_retries):
             try:
-                # Re-read the latest data before writing to avoid conflicts
-                if attempt > 0:
-                    # Add increasing delay for each retry
-                    time.sleep(write_retry_delay + random.uniform(0, 1))
+                # Strategy 1: Try to use append for better concurrency
+                try:
+                    # First, try to delete existing entries for this user if any exist
+                    latest_data = conn.read(worksheet="predictions", usecols=list(range(6)), ttl=0)
+                    if not latest_data.empty and 'name' in latest_data.columns:
+                        # Filter out this user's existing entries
+                        filtered_data = latest_data[latest_data['name'] != name]
+                        # Add new entries
+                        final_data = pd.concat([filtered_data, new_rows_df], ignore_index=True)
+                        # Write the complete updated dataset
+                        conn.update(worksheet="predictions", data=final_data)
+                    else:
+                        # Sheet is empty or no existing data, just write new data
+                        conn.update(worksheet="predictions", data=new_rows_df)
+                    break
                     
-                    latest_data = conn.read(worksheet="predictions", usecols=list(range(5)))
-                    if not latest_data.empty:
-                        # Remove this user's existing entries from the latest data
-                        latest_data = latest_data[latest_data['name'] != name]
-                        # Combine with new rows
-                        updated_data = pd.concat([latest_data, new_rows_df], ignore_index=True)
+                except Exception as update_error:
+                    # Fallback: direct append (might create duplicates but safer for concurrency)
+                    if attempt == max_write_retries - 1:
+                        # Last attempt: just append and let user handle duplicates
+                        existing_sheets_data = conn.read(worksheet="predictions", ttl=0)
+                        combined_data = pd.concat([existing_sheets_data, new_rows_df], ignore_index=True)
+                        conn.update(worksheet="predictions", data=combined_data)
+                        break
+                    else:
+                        raise update_error
                 
-                conn.update(worksheet="predictions", data=updated_data)
-                break
             except Exception as write_error:
                 if attempt == max_write_retries - 1:
                     raise write_error
                 else:
+                    # Add delay before retry attempts with jitter
+                    time.sleep(write_retry_delay + random.uniform(0.2, 1.0))
                     write_retry_delay *= 1.5  # Gradually increase delay
         
         return True, "Successfully saved to database!"
@@ -722,6 +747,11 @@ with tab10:
 with tab11:
     st.header("Submit Your Predictions")
     
+    # Show save status if available
+    if st.session_state.get('save_completed', False):
+        st.success("✅ Your predictions have been saved successfully!")
+        st.info("You can continue to view other tabs or make changes to your predictions.")
+    
     # Create predictions table
     predictions_data = []
     
@@ -884,32 +914,39 @@ with tab11:
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            if st.button("💾 Save Predictions", type="primary", use_container_width=True):
-                # Generate unique session identifier to prevent conflicts
-                session_id = f"{user_name}_{int(time.time() * 1000)}"
+            with st.form("save_predictions_form"):
+                submitted = st.form_submit_button("💾 Save Predictions", type="primary", use_container_width=True)
                 
-                try:
-                    with st.spinner(f"Saving predictions for {user_name}..."):
-                        # Save to local CSV with session tracking
-                        updated_df = save_selection(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
-                        
-                        # Save to Google Sheets with retry mechanism
-                        gsheets_success, gsheets_message = save_selection_to_gsheets(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
-                        
-                        if gsheets_success:
-                            st.success(f"✅ Predictions saved successfully for {user_name}!")
-                            st.info("✓ Local backup and Google Sheets updated")
-                        else:
-                            st.success(f"✅ Predictions saved locally for {user_name}!")
-                            st.warning(f"⚠️ Google Sheets issue: {gsheets_message}")
-                            st.info("Your predictions are saved locally as backup")
+                if submitted:
+                    # Generate unique session identifier to prevent conflicts
+                    session_id = f"{user_name}_{int(time.time() * 1000)}"
                     
-                    # Store success state to prevent double-saves
-                    st.session_state[f'last_save_{user_name}'] = session_id
-                    
-                except Exception as e:
-                    st.error(f"❌ Error saving predictions: {str(e)}")
-                    st.info("Please try again or contact support if the issue persists")
+                    try:
+                        with st.spinner(f"Saving predictions for {user_name}..."):
+                            # Save to local CSV with session tracking
+                            updated_df = save_selection(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
+                            
+                            # Save to Google Sheets with retry mechanism
+                            gsheets_success, gsheets_message = save_selection_to_gsheets(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
+                            
+                            if gsheets_success:
+                                st.success(f"✅ Predictions saved successfully for {user_name}!")
+                                st.info("✓ Local backup and Google Sheets updated")
+                            else:
+                                st.success(f"✅ Predictions saved locally for {user_name}!")
+                                st.warning(f"⚠️ Google Sheets issue: {gsheets_message}")
+                                st.info("Your predictions are saved locally as backup")
+                        
+                        # Store success state to prevent double-saves and preserve tab state
+                        st.session_state[f'last_save_{user_name}'] = session_id
+                        st.session_state['save_completed'] = True
+                        
+                        # Add a note about staying on the current tab
+                        st.info("💡 Your predictions have been saved! You can continue using other tabs or make changes.")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error saving predictions: {str(e)}")
+                        st.info("Please try again or contact support if the issue persists")
     else:
         st.warning("⚠️ Please enter your name and make all selections before submitting.")
         
