@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import os
+import time
+import random
+import threading
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
@@ -24,12 +27,19 @@ def load_data():
     worst_record_data = pd.read_csv("categories/worst_record.csv")
     return afc_data, nfc_data, mvp_data, dpoy_data, oroy_data, dark_horse_data, playoff_miss_data, worst_record_data
 
+# Global lock for CSV file operations
+csv_lock = threading.Lock()
+
 def load_selections():
-    """Load existing selections or create empty DataFrame"""
-    try:
-        return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
-    except Exception as e:
-        return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+    """Load existing selections or create empty DataFrame with file locking"""
+    with csv_lock:
+        try:
+            if os.path.exists("predictions.csv"):
+                return pd.read_csv("predictions.csv")
+            else:
+                return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+        except Exception as e:
+            return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
 
 def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_winner, oroy_winner, dark_horse_winner, playoff_miss_winner, worst_record_winner):
     """Save user selection to Google Sheets with Service Account authentication"""
@@ -53,14 +63,24 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         # Create connection to Google Sheets with service account
         conn = st.connection("gsheets", type=GSheetsConnection)
         
-        # Read existing data from Google Sheets
-        try:
-            existing_data = conn.read(worksheet="predictions", usecols=list(range(4)))
-            if existing_data.empty:
-                existing_data = pd.DataFrame(columns=['name', 'category', 'points', 'timestamp'])
-        except Exception as read_error:
-            # If worksheet doesn't exist, create empty DataFrame
-            existing_data = pd.DataFrame(columns=['name', 'category', 'points', 'timestamp'])
+        # Read existing data from Google Sheets with retry logic
+        max_retries = 3
+        retry_delay = 1
+        
+        for attempt in range(max_retries):
+            try:
+                existing_data = conn.read(worksheet="predictions", usecols=list(range(5)))
+                if existing_data.empty:
+                    existing_data = pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+                break
+            except Exception as read_error:
+                if attempt == max_retries - 1:
+                    # If this is the last attempt, create empty DataFrame
+                    existing_data = pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp'])
+                else:
+                    # Wait before retrying
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
         
         # Remove existing entries for this user
         if not existing_data.empty and 'name' in existing_data.columns:
@@ -201,10 +221,38 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
         
         # Add new rows to existing data
         new_rows_df = pd.DataFrame(new_rows)
+        
+        # Add a small random delay to reduce collision probability
+        import random
+        time.sleep(random.uniform(0.1, 0.5))
+        
         updated_data = pd.concat([existing_data, new_rows_df], ignore_index=True)
         
-        # Write updated data back to Google Sheets
-        conn.update(worksheet="predictions", data=updated_data)
+        # Write updated data back to Google Sheets with retry logic
+        max_write_retries = 5
+        write_retry_delay = 1
+        
+        for attempt in range(max_write_retries):
+            try:
+                # Re-read the latest data before writing to avoid conflicts
+                if attempt > 0:
+                    # Add increasing delay for each retry
+                    time.sleep(write_retry_delay + random.uniform(0, 1))
+                    
+                    latest_data = conn.read(worksheet="predictions", usecols=list(range(5)))
+                    if not latest_data.empty:
+                        # Remove this user's existing entries from the latest data
+                        latest_data = latest_data[latest_data['name'] != name]
+                        # Combine with new rows
+                        updated_data = pd.concat([latest_data, new_rows_df], ignore_index=True)
+                
+                conn.update(worksheet="predictions", data=updated_data)
+                break
+            except Exception as write_error:
+                if attempt == max_write_retries - 1:
+                    raise write_error
+                else:
+                    write_retry_delay *= 1.5  # Gradually increase delay
         
         return True, "Successfully saved to database!"
         
@@ -365,6 +413,31 @@ def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_win
     # Add new rows to existing data
     new_rows_df = pd.DataFrame(new_rows)
     updated_df = pd.concat([selections_df, new_rows_df], ignore_index=True)
+    
+    # Save to CSV with file locking
+    with csv_lock:
+        max_csv_retries = 3
+        csv_retry_delay = 0.5
+        
+        for attempt in range(max_csv_retries):
+            try:
+                # Re-read the latest data before writing to avoid conflicts
+                if attempt > 0:
+                    latest_df = load_selections()
+                    # Remove this user's existing entries from the latest data
+                    if not latest_df.empty and 'name' in latest_df.columns:
+                        latest_df = latest_df[latest_df['name'] != name]
+                    # Combine with new rows
+                    updated_df = pd.concat([latest_df, new_rows_df], ignore_index=True)
+                
+                updated_df.to_csv("predictions.csv", index=False)
+                break
+            except Exception as csv_error:
+                if attempt == max_csv_retries - 1:
+                    st.error(f"Failed to save to CSV after {max_csv_retries} attempts: {csv_error}")
+                else:
+                    time.sleep(csv_retry_delay)
+                    csv_retry_delay *= 2
     
     return updated_df
 
@@ -812,28 +885,31 @@ with tab11:
         
         with col1:
             if st.button("💾 Save Predictions", type="primary", use_container_width=True):
+                # Generate unique session identifier to prevent conflicts
+                session_id = f"{user_name}_{int(time.time() * 1000)}"
+                
                 try:
-                    # Save to local CSV
-                    updated_df = save_selection(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
-                    
-                    # Save to Google Sheets
-                    with st.spinner("Saving to database..."):
+                    with st.spinner(f"Saving predictions for {user_name}..."):
+                        # Save to local CSV with session tracking
+                        updated_df = save_selection(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
+                        
+                        # Save to Google Sheets with retry mechanism
                         gsheets_success, gsheets_message = save_selection_to_gsheets(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
                         
                         if gsheets_success:
-                            st.success(f"✅ Predictions saved for {user_name}!")
-                            st.success(gsheets_message)
+                            st.success(f"✅ Predictions saved successfully for {user_name}!")
+                            st.info("✓ Local backup and Google Sheets updated")
                         else:
                             st.success(f"✅ Predictions saved locally for {user_name}!")
-                            st.warning(f"Google Sheets: {gsheets_message}")
+                            st.warning(f"⚠️ Google Sheets issue: {gsheets_message}")
+                            st.info("Your predictions are saved locally as backup")
                     
-                    # st.rerun()
-                except Exception as e:
-                    st.error(f"Error saving predictions: {str(e)}")
+                    # Store success state to prevent double-saves
+                    st.session_state[f'last_save_{user_name}'] = session_id
                     
-                    st.rerun()
                 except Exception as e:
-                    st.error(f"Error saving/committing predictions: {str(e)}")
+                    st.error(f"❌ Error saving predictions: {str(e)}")
+                    st.info("Please try again or contact support if the issue persists")
     else:
         st.warning("⚠️ Please enter your name and make all selections before submitting.")
         
