@@ -3,7 +3,6 @@ import pandas as pd
 import os
 import time
 import random
-import threading
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
@@ -88,17 +87,6 @@ def render_podium(scoring_results):
         f'max-width:520px; margin:8px auto 4px;">{blocks}</div>',
         unsafe_allow_html=True,
     )
-
-# Global lock for CSV file operations
-csv_lock = threading.Lock()
-
-def load_selections():
-    """Load existing selections or create empty DataFrame with file locking"""
-    with csv_lock:
-        try:
-            return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp', 'session_id'])
-        except Exception as e:
-            return pd.DataFrame(columns=['name', 'category', 'selection', 'points', 'timestamp', 'session_id'])
 
 def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_winner, oroy_winner, dark_horse_winner, playoff_miss_winner, worst_record_winner):
     """Save user selection to Google Sheets with Service Account authentication"""
@@ -355,178 +343,6 @@ def save_selection_to_gsheets(name, afc_winner, nfc_winner, sb_winner, mvp_winne
             return False, "Spreadsheet or worksheet not found. Check your spreadsheet ID and worksheet name in secrets.toml"
         else:
             return False, f"Error saving to Google Sheets: {error_msg}"
-
-def save_selection(name, afc_winner, nfc_winner, sb_winner, mvp_winner, dpoy_winner, oroy_winner, dark_horse_winner, playoff_miss_winner, worst_record_winner):
-    """Save user selection to CSV"""
-    selections_df = load_selections()
-    
-    # Remove existing entries for this user
-    if 'name' in selections_df.columns:
-        selections_df = selections_df[selections_df['name'] != name]
-    
-    # Prepare new row data for each category
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_rows = []
-    
-    # Add AFC Winner row
-    afc_points = afc_df[afc_df['selection'] == afc_winner]['points'].iloc[0]
-    new_rows.append({
-        'name': name,
-        'category': 'AFC Winner',
-        'selection': afc_winner,
-        'points': afc_points,
-        'timestamp': timestamp
-    })
-    
-    # Add NFC Winner row
-    nfc_points = nfc_df[nfc_df['selection'] == nfc_winner]['points'].iloc[0]
-    new_rows.append({
-        'name': name,
-        'category': 'NFC Winner',
-        'selection': nfc_winner,
-        'points': nfc_points,
-        'timestamp': timestamp
-    })
-    
-    # Add Super Bowl Winner row
-    if sb_winner == afc_winner:
-        sb_points = afc_df[afc_df['selection'] == sb_winner]['points'].iloc[0]
-    else:
-        sb_points = nfc_df[nfc_df['selection'] == sb_winner]['points'].iloc[0]
-    new_rows.append({
-        'name': name,
-        'category': 'Super Bowl Winner',
-        'selection': sb_winner,
-        'points': sb_points,
-        'timestamp': timestamp
-    })
-    
-    # Add MVP Winner row
-    mvp_points = mvp_df[mvp_df['selection'] == mvp_winner]['points'].iloc[0]
-    new_rows.append({
-        'name': name,
-        'category': 'MVP',
-        'selection': mvp_winner,
-        'points': mvp_points,
-        'timestamp': timestamp
-    })
-    
-    # Add DPOY Winner row
-    dpoy_points = dpoy_df[dpoy_df['selection'] == dpoy_winner]['points'].iloc[0]
-    new_rows.append({
-        'name': name,
-        'category': 'DPOY',
-        'selection': dpoy_winner,
-        'points': dpoy_points,
-        'timestamp': timestamp
-    })
-    
-    # Add OROY Winner row
-    oroy_points = oroy_df[oroy_df['selection'] == oroy_winner]['points'].iloc[0]
-    new_rows.append({
-        'name': name,
-        'category': 'OROY',
-        'selection': oroy_winner,
-        'points': oroy_points,
-        'timestamp': timestamp
-    })
-    
-    # Add Dark Horse Winner rows (can be multiple teams)
-    if isinstance(dark_horse_winner, list):
-        for team in dark_horse_winner:
-            dark_horse_points = dark_horse_df[dark_horse_df['selection'] == team]['points'].iloc[0]
-            new_rows.append({
-                'name': name,
-                'category': 'Dark Horse',
-                'selection': team,
-                'points': dark_horse_points,
-                'timestamp': timestamp
-            })
-    else:
-        # Handle single selection (backward compatibility)
-        dark_horse_points = dark_horse_df[dark_horse_df['selection'] == dark_horse_winner]['points'].iloc[0]
-        new_rows.append({
-            'name': name,
-            'category': 'Dark Horse',
-            'selection': dark_horse_winner,
-            'points': dark_horse_points,
-            'timestamp': timestamp
-        })
-    
-    # Add Playoff Miss Winner rows (can be multiple teams)
-    if isinstance(playoff_miss_winner, list):
-        for team in playoff_miss_winner:
-            playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == team]['points'].iloc[0]
-            new_rows.append({
-                'name': name,
-                'category': 'Underperformer',
-                'selection': team,
-                'points': playoff_miss_points,
-                'timestamp': timestamp
-            })
-    else:
-        # Handle single selection (backward compatibility)
-        playoff_miss_points = playoff_miss_df[playoff_miss_df['selection'] == playoff_miss_winner]['points'].iloc[0]
-        new_rows.append({
-            'name': name,
-            'category': 'Underperformer',
-            'selection': playoff_miss_winner,
-            'points': playoff_miss_points,
-            'timestamp': timestamp
-        })
-    
-    # Add Worst Record Winner rows (can be multiple teams)
-    if isinstance(worst_record_winner, list):
-        for team in worst_record_winner:
-            worst_record_points = worst_record_df[worst_record_df['selection'] == team]['points'].iloc[0]
-            new_rows.append({
-                'name': name,
-                'category': 'Worst Record',
-                'selection': team,
-                'points': worst_record_points,
-                'timestamp': timestamp
-            })
-    else:
-        # Handle single selection (backward compatibility)
-        worst_record_points = worst_record_df[worst_record_df['selection'] == worst_record_winner]['points'].iloc[0]
-        new_rows.append({
-            'name': name,
-            'category': 'Worst Record',
-            'selection': worst_record_winner,
-            'points': worst_record_points,
-            'timestamp': timestamp
-        })
-    
-    # Add new rows to existing data
-    new_rows_df = pd.DataFrame(new_rows)
-    updated_df = pd.concat([selections_df, new_rows_df], ignore_index=True)
-    
-    # Save to CSV with file locking
-    with csv_lock:
-        max_csv_retries = 3
-        csv_retry_delay = 0.5
-        
-        for attempt in range(max_csv_retries):
-            try:
-                # Re-read the latest data before writing to avoid conflicts
-                if attempt > 0:
-                    latest_df = load_selections()
-                    # Remove this user's existing entries from the latest data
-                    if not latest_df.empty and 'name' in latest_df.columns:
-                        latest_df = latest_df[latest_df['name'] != name]
-                    # Combine with new rows
-                    updated_df = pd.concat([latest_df, new_rows_df], ignore_index=True)
-                
-                updated_df.to_csv("predictions.csv", index=False)
-                break
-            except Exception as csv_error:
-                if attempt == max_csv_retries - 1:
-                    st.error(f"Failed to save to CSV after {max_csv_retries} attempts: {csv_error}")
-                else:
-                    time.sleep(csv_retry_delay)
-                    csv_retry_delay *= 2
-    
-    return updated_df
 
 afc_df, nfc_df, mvp_df, dpoy_df, oroy_df, dark_horse_df, playoff_miss_df, worst_record_df = load_data()
 
@@ -986,27 +802,22 @@ with tab11:
                     
                     try:
                         with st.spinner(f"Saving predictions for {user_name}..."):
-                            # Save to local CSV with session tracking
-                            updated_df = save_selection(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
-                            
                             # Save to Google Sheets with retry mechanism
                             gsheets_success, gsheets_message = save_selection_to_gsheets(user_name, selected_afc, selected_nfc, selected_sb, selected_mvp, selected_dpoy, selected_oroy, selected_dark_horse, selected_playoff_miss, selected_worst_record)
-                            
-                            if gsheets_success:
-                                st.success(f"✅ Predictions saved successfully for {user_name}!")
-                                st.info("✓ Local backup and Google Sheets updated")
-                            else:
-                                st.success(f"✅ Predictions saved locally for {user_name}!")
-                                st.warning(f"⚠️ Google Sheets issue: {gsheets_message}")
-                                st.info("Your predictions are saved locally as backup")
-                        
-                        # Store success state to prevent double-saves and preserve tab state
-                        st.session_state[f'last_save_{user_name}'] = session_id
-                        st.session_state['save_completed'] = True
-                        
-                        # Add a note about staying on the current tab
-                        st.info("💡 Your predictions have been saved! You can continue using other tabs or make changes.")
-                        
+
+                        if gsheets_success:
+                            st.success(f"✅ Predictions saved successfully for {user_name}!")
+
+                            # Store success state to prevent double-saves and preserve tab state
+                            st.session_state[f'last_save_{user_name}'] = session_id
+                            st.session_state['save_completed'] = True
+
+                            # Add a note about staying on the current tab
+                            st.info("💡 Your predictions have been saved! You can continue using other tabs or make changes.")
+                        else:
+                            st.error(f"❌ Could not save predictions: {gsheets_message}")
+                            st.info("Nothing was saved — please try again in a moment.")
+
                     except Exception as e:
                         st.error(f"❌ Error saving predictions: {str(e)}")
                         st.info("Please try again or contact support if the issue persists")
