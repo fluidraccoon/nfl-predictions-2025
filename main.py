@@ -15,7 +15,7 @@ st.set_page_config(
 st.title("2026 NFL Predictions 🔮")
 
 # Load the data
-@st.cache_data
+# Not cached: the category CSVs are tiny and this lets edits show up on the next rerun.
 def load_data():
     afc_data = pd.read_csv("categories/afc_winner.csv")
     nfc_data = pd.read_csv("categories/nfc_winner.csv")
