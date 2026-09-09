@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "nfl-predictions-2025"
+name = "nfl-predictions-2026"
 version = "0.1.0"
-description = "NFL 2025 season predictions dashboard with Streamlit"
+description = "NFL 2026 season predictions dashboard with Streamlit"
 authors = ["Your Name <your.email@example.com>"]
 package-mode = false
 
