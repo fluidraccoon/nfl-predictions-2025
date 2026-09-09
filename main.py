@@ -27,6 +27,68 @@ def load_data():
     worst_record_data = pd.read_csv("categories/worst_record.csv")
     return afc_data, nfc_data, mvp_data, dpoy_data, oroy_data, dark_horse_data, playoff_miss_data, worst_record_data
 
+def render_podium(scoring_results):
+    """Render a gold/silver/bronze podium for the top 3 by Total Points.
+
+    `scoring_results` is the list of per-person dicts, already sorted by
+    'Total Points' descending, each with 'Name' and 'Total Points' keys.
+    Ties share a place, so a place can hold more than one name.
+    """
+    if not scoring_results:
+        return
+
+    # Assign places with ties sharing a place (1, 1, 3, ...); keep places 1-3.
+    by_place = {}
+    last_points = None
+    place = 0
+    for i, result in enumerate(scoring_results):
+        try:
+            pts = float(result['Total Points'])
+        except (TypeError, ValueError):
+            pts = 0.0
+        if pts != last_points:
+            place = i + 1
+            last_points = pts
+        if place > 3:
+            break
+        by_place.setdefault(place, {'names': [], 'points': pts})
+        by_place[place]['names'].append(result['Name'])
+
+    if not by_place:
+        return
+
+    medals = {1: '🥇', 2: '🥈', 3: '🥉'}
+    colors = {1: '#FFD700', 2: '#C0C0C0', 3: '#CD7F32'}
+    heights = {1: 150, 2: 110, 3: 85}
+
+    st.subheader("🏆 Podium")
+
+    blocks = ""
+    for place in (2, 1, 3):  # left-to-right: silver, gold, bronze
+        if place not in by_place:
+            continue
+        entry = by_place[place]
+        names_html = "<br>".join(entry['names'])
+        pts_display = f"{entry['points']:g}"
+        blocks += (
+            '<div style="display:flex; flex-direction:column; align-items:center; '
+            'margin:0 6px; flex:1;">'
+            f'<div style="font-size:2rem; line-height:1;">{medals[place]}</div>'
+            f'<div style="font-weight:700; text-align:center; margin:4px 0;">{names_html}</div>'
+            f'<div style="opacity:0.7; font-size:0.85rem; margin-bottom:6px;">{pts_display} pts</div>'
+            f'<div style="width:100%; height:{heights[place]}px; background:{colors[place]}; '
+            'border-radius:8px 8px 0 0; display:flex; align-items:flex-start; '
+            'justify-content:center; color:rgba(0,0,0,0.7); font-weight:700; '
+            f'padding-top:6px;">{place}</div>'
+            '</div>'
+        )
+
+    st.markdown(
+        '<div style="display:flex; align-items:flex-end; justify-content:center; '
+        f'max-width:520px; margin:8px auto 4px;">{blocks}</div>',
+        unsafe_allow_html=True,
+    )
+
 # Global lock for CSV file operations
 csv_lock = threading.Lock()
 
@@ -1104,8 +1166,11 @@ with tab1:
         
         # Sort by total points (descending)
         scoring_results.sort(key=lambda x: float(x['Total Points']), reverse=True)
-        
+
+        render_podium(scoring_results)
+
         # Display leaderboard
+        st.subheader("📋 Full Leaderboard")
         leaderboard_df = pd.DataFrame(scoring_results)
         st.dataframe(leaderboard_df[['Name', 'Correct Predictions', 'Total Points']], hide_index=True, use_container_width=True)
         
@@ -1259,7 +1324,10 @@ with tab_2025:
         # Sort by total points (descending)
         scoring_results.sort(key=lambda x: float(x['Total Points']), reverse=True)
 
+        render_podium(scoring_results)
+
         # Display leaderboard
+        st.subheader("📋 Full Leaderboard")
         leaderboard_df = pd.DataFrame(scoring_results)
         st.dataframe(leaderboard_df[['Name', 'Correct Predictions', 'Total Points']], hide_index=True, use_container_width=True)
 
