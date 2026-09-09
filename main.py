@@ -1094,16 +1094,10 @@ with tab1:
             html_content += f"<tr><td>{category}</td><td>{winner_display}</td></tr>"
         
         html_content += "</table>"
-        st.markdown(html_content, unsafe_allow_html=True)
-        
-        st.divider()
-        
-        # Calculate and display scores
-        st.subheader("🎯 Scoring Results")
-        
+
         # Create scoring results
         scoring_results = []
-        
+
         for index, row in predictions_2024_df.iterrows():
             name = row['Your Name']
             total_points = 0
@@ -1169,14 +1163,21 @@ with tab1:
 
         render_podium(scoring_results)
 
+        st.divider()
+
+        # Show the actual season winners
+        st.markdown(html_content, unsafe_allow_html=True)
+
+        st.divider()
+
         # Display leaderboard
-        st.subheader("📋 Full Leaderboard")
+        st.subheader("🎯 Scoring Results")
         leaderboard_df = pd.DataFrame(scoring_results)
         st.dataframe(leaderboard_df[['Name', 'Correct Predictions', 'Total Points']], hide_index=True, use_container_width=True)
-        
+
         # Display detailed breakdown for selected user
         st.subheader("🔍 Detailed Breakdown")
-        selected_user = st.selectbox("Select user for detailed breakdown:", 
+        selected_user = st.selectbox("Select user for detailed breakdown:",
             options=[result['Name'] for result in scoring_results],
             key="user_breakdown_select"
         )
@@ -1261,12 +1262,6 @@ with tab_2025:
             html_content += f"<tr><td>{category}</td><td>{winner_display}</td></tr>"
 
         html_content += "</table>"
-        st.markdown(html_content, unsafe_allow_html=True)
-
-        st.divider()
-
-        # Calculate and display scores
-        st.subheader("🎯 Scoring Results")
 
         # Create scoring results
         scoring_results = []
@@ -1326,8 +1321,15 @@ with tab_2025:
 
         render_podium(scoring_results)
 
+        st.divider()
+
+        # Show the actual season winners
+        st.markdown(html_content, unsafe_allow_html=True)
+
+        st.divider()
+
         # Display leaderboard
-        st.subheader("📋 Full Leaderboard")
+        st.subheader("🎯 Scoring Results")
         leaderboard_df = pd.DataFrame(scoring_results)
         st.dataframe(leaderboard_df[['Name', 'Correct Predictions', 'Total Points']], hide_index=True, use_container_width=True)
 
